@@ -70,10 +70,38 @@ const char wifi_config_html[] PROGMEM = R"rawliteral(
 const char* pre_ssid = "Clock Wifi";
 const char* pre_pass = "12345678";
 
+//Global for the moment, might change later
+String ssid = "";
+String pass = "";
+int wifi_status = WL_IDLE_STATUS;
+IPAddress google_server(74,125,115,105); //to test
+WiFiClient client;
 AsyncWebServer server(80);
 
 //Generates a String to dynamically add the Wifi-Networks on site.
 String generateWifiOptions();
+
+void connectToWifi() {
+  Serial.print("Attempting to connect to: ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  //WiFi.begin(ssid, pass);
+  int retries = 0;
+  while (WiFi.status() != WL_CONNECTED && retries < 10) {
+    delay(500);
+    Serial.print(".");
+    retries++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\nFailed to connect to WiFi.");
+  }
+}
 
 void setup() {
   // put your setup code here, to run once:
@@ -83,16 +111,16 @@ void setup() {
   Serial.print("Access Point IP: ");
   Serial.println(ip_addr);
 
-  String config_html = wifi_config_html;
-  config_html.replace("%WIFI_PLACEHOLDER%", generateWifiOptions());
-
-  server.on("/", HTTP_GET, [config_html] (AsyncWebServerRequest *request) {
+  server.on("/", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    String config_html = wifi_config_html;
+    config_html.replace("%WIFI_PLACEHOLDER%", generateWifiOptions());
     request -> send(200, "text/html", config_html);
   });
 
   server.on("/data", HTTP_POST, [] (AsyncWebServerRequest *request) {
-    String ssid = "";
-    String pass = "";
+    //reset both
+    //String ssid = "";
+    //String pass = "";
     if(request -> hasParam("fssid", true)) {
       ssid = request -> getParam("fssid", true) -> value();
     }
@@ -102,6 +130,7 @@ void setup() {
     Serial.println("SSID: " + ssid);
     Serial.println("Password: " + pass);
     request -> send (200, "text/plain", "OK");
+    connectToWifi();
   });
 
   server.begin();
@@ -109,6 +138,12 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+    if (WiFi.status() == WL_CONNECTED) {
+    if (client.connect(google_server, 80)) {
+      Serial.println("Connected to Google server");
+      client.stop();
+    }
+  }
 }
 
 
