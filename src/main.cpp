@@ -9,7 +9,7 @@
 
 
 //Reset on Pin G21
-
+const int reset_button = 21;
 
 const char wifi_config_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -90,32 +90,14 @@ String generateWifiOptions();
 // File Writing
 void fileWriteData(String data, String filename);
 
+void resetConfig();
+
 // Currently returns 0 if something went wrong
-int connectToWifi(String ssid, String pass) {
-  Serial.print("Attempting to connect to: ");
-  Serial.println(ssid);
-
-  WiFi.begin(ssid.c_str(), pass.c_str());
-  //WiFi.begin(ssid, pass);
-  int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < 10) {
-    delay(500);
-    Serial.print(".");
-    retries++;
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi connected!");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
-    return 1;
-  } else {
-    Serial.println("\nFailed to connect to WiFi.");
-    return 0;
-  }
-}
+int connectToWifi(String ssid, String pass);
 
 void setup() {
+  pinMode(reset_button, INPUT);
+  int button_state = digitalRead(reset_button);
   // put your setup code here, to run once:
   Serial.begin(115200);
 
@@ -123,6 +105,13 @@ void setup() {
   if(!LittleFS.begin()) {
     Serial.println("ERROR: Could not mount Filesystem");
     return;
+  }
+
+  if(button_state == HIGH){
+    Serial.println("Button Pressed, Resetting");
+    resetConfig();
+  } else {
+    Serial.println("Button't");
   }
 
   File file = LittleFS.open("/config.json", FILE_READ);
@@ -205,7 +194,7 @@ void loop() {
 
 
 void fileWriteData(String data, String filename){
-    File file = LittleFS.open(filename, FILE_WRITE);
+  File file = LittleFS.open(filename, FILE_WRITE);
   if(!file){
     Serial.println("Failed to open file");
     return;
@@ -227,4 +216,39 @@ String generateWifiOptions() {
     }
   }
   return options;
+}
+
+int connectToWifi(String ssid, String pass) {
+  Serial.print("Attempting to connect to: ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  //WiFi.begin(ssid, pass);
+  int retries = 0;
+  while (WiFi.status() != WL_CONNECTED && retries < 10) {
+    delay(500);
+    Serial.print(".");
+    retries++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+    return 1;
+  } else {
+    Serial.println("\nFailed to connect to WiFi.");
+    return 0;
+  }
+}
+
+void resetConfig(){
+  String output;
+  JsonDocument new_config;
+  new_config["ssid"] = "";
+  new_config["pass"] = "";
+  new_config.shrinkToFit();
+  serializeJson(new_config, output);
+  Serial.println(output);
+  fileWriteData(output, "/config.json");
 }
