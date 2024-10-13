@@ -7,6 +7,10 @@
 #include "LittleFS.h"
 #include <ArduinoJson.h>
 
+
+//Reset on Pin G21
+
+
 const char wifi_config_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -83,8 +87,11 @@ AsyncWebServer server(80);
 
 //Generates a String to dynamically add the Wifi-Networks on site.
 String generateWifiOptions();
+// File Writing
+void fileWriteData(String data, String filename);
 
-void connectToWifi() {
+// Currently returns 0 if something went wrong
+int connectToWifi(String ssid, String pass) {
   Serial.print("Attempting to connect to: ");
   Serial.println(ssid);
 
@@ -101,8 +108,10 @@ void connectToWifi() {
     Serial.println("\nWiFi connected!");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
+    return 1;
   } else {
     Serial.println("\nFailed to connect to WiFi.");
+    return 0;
   }
 }
 
@@ -122,11 +131,12 @@ void setup() {
     return;
   }
   
-  // Read the file into String
+  // Read the file into String, then close, open only if needed
   String file_content = file.readString();
   Serial.println(file_content);
+  file.close();
+
   //Json
-  
   JsonDocument config;
   deserializeJson(config, file_content);
   const char* j_ssid = config["ssid"];
@@ -135,11 +145,17 @@ void setup() {
   Serial.print(j_ssid);
   Serial.print(" PW: ");
   Serial.println(j_pass);
-
-  WiFi.softAP(pre_ssid, pre_pass);
-  IPAddress ip_addr = WiFi.softAPIP();
-  Serial.print("Access Point IP: ");
-  Serial.println(ip_addr);
+  
+  if(j_ssid[0] == '\0' && j_pass[0] == '\0'){
+    WiFi.softAP(pre_ssid, pre_pass);
+    IPAddress ip_addr = WiFi.softAPIP();
+    Serial.print("Access Point IP: ");
+    Serial.println(ip_addr);
+  } else {
+    Serial.println("Trying to connect to Network");
+    connectToWifi(j_ssid, j_pass);
+  }
+  
 
   server.on("/", HTTP_GET, [] (AsyncWebServerRequest *request) {
     String config_html = wifi_config_html;
@@ -147,7 +163,7 @@ void setup() {
     request -> send(200, "text/html", config_html);
   });
 
-  server.on("/data", HTTP_POST, [] (AsyncWebServerRequest *request) {
+  server.on("/data", HTTP_POST, [config, j_ssid, j_pass] (AsyncWebServerRequest *request) {
     //reset both
     //String ssid = "";
     //String pass = "";
@@ -160,7 +176,18 @@ void setup() {
     Serial.println("SSID: " + ssid);
     Serial.println("Password: " + pass);
     request -> send (200, "text/plain", "OK");
-    connectToWifi();
+
+    //try to connect and if successfull write to json
+    if(connectToWifi(ssid, pass)) {
+      String output;
+      JsonDocument new_config;
+      new_config["ssid"] = ssid;
+      new_config["pass"] = pass;
+      new_config.shrinkToFit();
+      serializeJson(new_config, output);
+      Serial.println(output);
+      fileWriteData(output, "/config.json");
+    }
   });
 
   server.begin();
@@ -176,6 +203,16 @@ void loop() {
   }
 }
 
+
+void fileWriteData(String data, String filename){
+    File file = LittleFS.open(filename, FILE_WRITE);
+  if(!file){
+    Serial.println("Failed to open file");
+    return;
+  }
+  file.print(data);
+  file.close();
+}
 
 
 
