@@ -3,6 +3,9 @@
 // Async Server, for Config and Settings
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+// To read Data from Filesystem
+#include "LittleFS.h"
+#include <ArduinoJson.h>
 
 const char wifi_config_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -106,6 +109,33 @@ void connectToWifi() {
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+
+  // File System
+  if(!LittleFS.begin()) {
+    Serial.println("ERROR: Could not mount Filesystem");
+    return;
+  }
+
+  File file = LittleFS.open("/config.json", FILE_READ);
+  if(!file){
+    Serial.println("Failed to open file");
+    return;
+  }
+  
+  // Read the file into String
+  String file_content = file.readString();
+  Serial.println(file_content);
+  //Json
+  
+  JsonDocument config;
+  deserializeJson(config, file_content);
+  const char* j_ssid = config["ssid"];
+  const char* j_pass = config["pass"];
+  Serial.print("ID: ");
+  Serial.print(j_ssid);
+  Serial.print(" PW: ");
+  Serial.println(j_pass);
+
   WiFi.softAP(pre_ssid, pre_pass);
   IPAddress ip_addr = WiFi.softAPIP();
   Serial.print("Access Point IP: ");
