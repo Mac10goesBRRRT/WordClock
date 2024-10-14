@@ -8,6 +8,8 @@
 #include <ArduinoJson.h>
 // mdns for .local url
 #include <ESPmDNS.h>
+// for ntp server and time
+#include "time.h"
 
 //Reset on Pin G21
 const int reset_button = 21;
@@ -75,7 +77,7 @@ const char wifi_config_html[] PROGMEM = R"rawliteral(
 </html>
 )rawliteral";
 
-const char* pre_ssid = "Clock Wifi";
+const char* pre_ssid = "ClockWifi";
 const char* pre_pass = "12345678";
 
 //Global for the moment, might change later
@@ -86,6 +88,9 @@ IPAddress google_server(74,125,115,105); //to test
 WiFiClient client;
 AsyncWebServer server(80);
 
+enum PageMode {SETUP, SETTINGS};
+PageMode displayMode = SETUP;
+
 //Generates a String to dynamically add the Wifi-Networks on site.
 String generateWifiOptions();
 // File Writing
@@ -95,6 +100,17 @@ void resetConfig();
 
 // Currently returns 0 if something went wrong
 int connectToWifi(String ssid, String pass);
+
+// NTP stuff
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 0;
+const int daylightOffset_sec = 3600;
+struct tm timeinfo;
+
+// Minute Accurate Time:
+int previousMinute = -1;
+void onMinuteChange(struct tm timeinfo);
+void setTimezone(String timezone);
 
 void setup() {
   pinMode(reset_button, INPUT);
@@ -136,6 +152,8 @@ void setup() {
   Serial.print(" PW: ");
   Serial.println(j_pass);
   
+  // Check if theres a Wifi configured already. if not, start in AP mode.
+  // In addition add a variable that allows to redirect to the setup or settings page.
   if(j_ssid[0] == '\0' && j_pass[0] == '\0'){
     WiFi.softAP(pre_ssid, pre_pass);
     IPAddress ip_addr = WiFi.softAPIP();
@@ -144,19 +162,25 @@ void setup() {
   } else {
     Serial.println("Trying to connect to Network");
     connectToWifi(j_ssid, j_pass);
+    displayMode = SETTINGS;
   }
   
 
   server.on("/", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    if(displayMode == SETUP){
+      request -> redirect("/setup");
+    } else {
+      request -> send (200, "text/plain", "Todo");
+    }
+  });
+
+  server.on("/setup", HTTP_GET, [] (AsyncWebServerRequest *request) {
     String config_html = wifi_config_html;
     config_html.replace("%WIFI_PLACEHOLDER%", generateWifiOptions());
     request -> send(200, "text/html", config_html);
   });
 
   server.on("/data", HTTP_POST, [config, j_ssid, j_pass] (AsyncWebServerRequest *request) {
-    //reset both
-    //String ssid = "";
-    //String pass = "";
     if(request -> hasParam("fssid", true)) {
       ssid = request -> getParam("fssid", true) -> value();
     }
@@ -165,7 +189,7 @@ void setup() {
     }
     Serial.println("SSID: " + ssid);
     Serial.println("Password: " + pass);
-    request -> send (200, "text/plain", "OK");
+    //request -> send (200, "text/plain", "Switch to the selected network and refresh this page");
 
     //try to connect and if successfull write to json
     if(connectToWifi(ssid, pass)) {
@@ -177,21 +201,54 @@ void setup() {
       serializeJson(new_config, output);
       Serial.println(output);
       fileWriteData(output, "/config.json");
+      displayMode = SETTINGS;
+      request -> redirect("/");
+    } else {
+      request -> send (500, "text/plain", "Something went wrong, connect Arduino to PC and check debug");
     }
   });
   MDNS.begin("wordclock");
   server.begin();
 
-  
+
+  // Set Up NTP
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  setTimezone("CET-1CEST,M3.5.0,M10.5.0/3");
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  Serial.print("Day of week: ");
+  Serial.println(&timeinfo, "%A");
+  Serial.print("Month: ");
+  Serial.println(&timeinfo, "%B");
+  Serial.print("Day of Month: ");
+  Serial.println(&timeinfo, "%d");
+  Serial.print("Year: ");
+  Serial.println(&timeinfo, "%Y");
+  Serial.print("Hour: ");
+  Serial.println(&timeinfo, "%H");
+  Serial.print("Hour (12 hour format): ");
+  Serial.println(&timeinfo, "%I");
+  Serial.print("Minute: ");
+  Serial.println(&timeinfo, "%M");
+  Serial.print("Second: ");
+  Serial.println(&timeinfo, "%S");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-    if (WiFi.status() == WL_CONNECTED) {
-    if (client.connect(google_server, 80)) {
-      Serial.println("Connected to Google server");
-      client.stop();
-    }
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+
+  int currentMinute = timeinfo.tm_min;
+  if(currentMinute != previousMinute){
+    onMinuteChange(timeinfo);
+    previousMinute = currentMinute;
   }
 }
 
@@ -231,9 +288,11 @@ int connectToWifi(String ssid, String pass) {
   const long interval = 500;
   unsigned long prev_millis = 0;
   while (WiFi.status() != WL_CONNECTED && retries < 10) {
-    if(millis() - prev_millis >= interval){
-    Serial.print(".");
-    retries++;
+    unsigned long current_millis = millis();
+    if(current_millis - prev_millis >= interval){
+      prev_millis = current_millis;
+      Serial.print(".");
+      retries++;
     }
   }
 
@@ -257,4 +316,14 @@ void resetConfig(){
   serializeJson(new_config, output);
   Serial.println(output);
   fileWriteData(output, "/config.json");
+}
+
+void onMinuteChange(struct tm timeinfo){
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M");
+}
+
+void setTimezone(String timezone){
+  Serial.printf("  Setting Timezone to %s\n",timezone.c_str());
+  setenv("TZ",timezone.c_str(),1);  //  Now adjust the TZ.  Clock settings are adjusted to show the new local time
+  tzset();
 }
