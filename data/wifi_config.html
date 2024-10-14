@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; margin: 0; }
+    form {
+      display: inline-block;
+      text-align: left;
+      background-color: #f9f9f9;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      width: 100%;
+      max-width: 300px;
+      margin: auto;
+    }
+    h1 {
+      font-size: 22px;
+      margin-bottom: 15px;
+    }
+    label {
+      font-size: 14px;
+      margin-bottom: 5px;
+      display: block;
+    }
+    select, input[type="password"], input[type="submit"] {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0 10px 0;
+      display: block;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    input[type="submit"] {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    input[type="submit"]:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>ESP32 Web Server</h1>
+  <form action="/data" method="POST">
+    <label for="fssid">Wifi Name:</label>
+    <select id="fssid" name="fssid">
+      %WIFI_PLACEHOLDER%
+    </select>
+    <label for="fpass">Password:</label>
+    <input type="password" id="fpass" name="fpass">
+    <input type="submit" value="Connect">
+  </form>
+</body>
+</html>

@@ -14,71 +14,11 @@
 //Reset on Pin G21
 const int reset_button = 21;
 
-const char wifi_config_html[] PROGMEM = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="data:,">
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; margin: 0; }
-    form {
-      display: inline-block;
-      text-align: left;
-      background-color: #f9f9f9;
-      padding: 15px;
-      border-radius: 5px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-      width: 100%;
-      max-width: 300px;
-      margin: auto;
-    }
-    h1 {
-      font-size: 22px;
-      margin-bottom: 15px;
-    }
-    label {
-      font-size: 14px;
-      margin-bottom: 5px;
-      display: block;
-    }
-    select, input[type="password"], input[type="submit"] {
-      width: 100%;
-      padding: 8px;
-      margin: 5px 0 10px 0;
-      display: block;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    input[type="submit"] {
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    input[type="submit"]:hover {
-      background-color: #45a049;
-    }
-  </style>
-</head>
-<body>
-  <h1>ESP32 Web Server</h1>
-  <form action="/data" method="POST">
-    <label for="fssid">Wifi Name:</label>
-    <select id="fssid" name="fssid">
-      %WIFI_PLACEHOLDER%
-    </select>
-    <label for="fpass">Password:</label>
-    <input type="password" id="fpass" name="fpass">
-    <input type="submit" value="Connect">
-  </form>
-</body>
-</html>
-)rawliteral";
-
 const char* pre_ssid = "ClockWifi";
 const char* pre_pass = "12345678";
+//Simulate the logic:
+const char* frontplate = "ESKISTLFÜNFZEHNZWANZIGDREIVIERTELTGNACHVORJMHALBQZWÖLFPZWEINSIEBENKDREIRHFÜNFELFNEUNVIERWACHTZEHNRSBSECHSFMUHR";
+void drawDisplay(int hour, int minute);
 
 //Global for the moment, might change later
 String ssid = "";
@@ -95,6 +35,7 @@ PageMode displayMode = SETUP;
 String generateWifiOptions();
 // File Writing
 void fileWriteData(String data, String filename);
+String readFileToString(String filename);
 
 void resetConfig();
 
@@ -175,7 +116,7 @@ void setup() {
   });
 
   server.on("/setup", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    String config_html = wifi_config_html;
+    String config_html = readFileToString("/wifi_config.html");
     config_html.replace("%WIFI_PLACEHOLDER%", generateWifiOptions());
     request -> send(200, "text/html", config_html);
   });
@@ -189,7 +130,6 @@ void setup() {
     }
     Serial.println("SSID: " + ssid);
     Serial.println("Password: " + pass);
-    //request -> send (200, "text/plain", "Switch to the selected network and refresh this page");
 
     //try to connect and if successfull write to json
     if(connectToWifi(ssid, pass)) {
@@ -218,23 +158,6 @@ void setup() {
     return;
   }
   setTimezone("CET-1CEST,M3.5.0,M10.5.0/3");
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-  Serial.print("Day of week: ");
-  Serial.println(&timeinfo, "%A");
-  Serial.print("Month: ");
-  Serial.println(&timeinfo, "%B");
-  Serial.print("Day of Month: ");
-  Serial.println(&timeinfo, "%d");
-  Serial.print("Year: ");
-  Serial.println(&timeinfo, "%Y");
-  Serial.print("Hour: ");
-  Serial.println(&timeinfo, "%H");
-  Serial.print("Hour (12 hour format): ");
-  Serial.println(&timeinfo, "%I");
-  Serial.print("Minute: ");
-  Serial.println(&timeinfo, "%M");
-  Serial.print("Second: ");
-  Serial.println(&timeinfo, "%S");
 }
 
 void loop() {
@@ -320,10 +243,30 @@ void resetConfig(){
 
 void onMinuteChange(struct tm timeinfo){
   Serial.println(&timeinfo, "%A, %B %d %Y %H:%M");
+  int hour = timeinfo.tm_hour;
+  int min = timeinfo.tm_min;
+  drawDisplay(hour, min);
 }
 
 void setTimezone(String timezone){
   Serial.printf("  Setting Timezone to %s\n",timezone.c_str());
   setenv("TZ",timezone.c_str(),1);  //  Now adjust the TZ.  Clock settings are adjusted to show the new local time
   tzset();
+}
+
+String readFileToString(String filename){
+  String file_content;
+  File file = LittleFS.open(filename, FILE_READ);
+  if(!file){
+    Serial.println("Failed to open file");
+  } else {
+      file_content = file.readString();
+    //Serial.println(file_content);
+    file.close();
+  }
+  return file_content;
+}
+
+void drawDisplay(int hour, int minute){
+  
 }
