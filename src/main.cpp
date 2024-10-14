@@ -228,10 +228,13 @@ int connectToWifi(String ssid, String pass) {
   WiFi.begin(ssid.c_str(), pass.c_str());
   //WiFi.begin(ssid, pass);
   int retries = 0;
+  const long interval = 500;
+  unsigned long prev_millis = 0;
   while (WiFi.status() != WL_CONNECTED && retries < 10) {
-    delay(500);
+    if(millis() - prev_millis >= interval){
     Serial.print(".");
     retries++;
+    }
   }
 
   if (WiFi.status() == WL_CONNECTED) {
