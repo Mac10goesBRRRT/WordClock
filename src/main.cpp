@@ -6,7 +6,8 @@
 // To read Data from Filesystem
 #include "LittleFS.h"
 #include <ArduinoJson.h>
-
+// mdns for .local url
+#include <ESPmDNS.h>
 
 //Reset on Pin G21
 const int reset_button = 21;
@@ -178,8 +179,10 @@ void setup() {
       fileWriteData(output, "/config.json");
     }
   });
-
+  MDNS.begin("wordclock");
   server.begin();
+
+  
 }
 
 void loop() {
