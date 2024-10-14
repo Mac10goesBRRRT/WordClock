@@ -17,8 +17,16 @@ const int reset_button = 21;
 const char* pre_ssid = "ClockWifi";
 const char* pre_pass = "12345678";
 //Simulate the logic:
-const char* frontplate = "ESKISTLFÜNFZEHNZWANZIGDREIVIERTELTGNACHVORJMHALBQZWÖLFPZWEINSIEBENKDREIRHFÜNFELFNEUNVIERWACHTZEHNRSBSECHSFMUHR";
+const char* frontplate = "ESKISTLF\xF5NFZEHNZWANZIGDREIVIERTELTGNACHVORJMHALBQZW\xEFLFPZWEINSIEBENKDREIRHF\xF5NFELFNEUNVIERWACHTZEHNRSBSECHSFMUHR";
+
+enum wordtype {S_IT, S_IS, M_FIVE, M_TEN, M_TWENTY, M_FIFTEEN, M_FORTYFIVE, S_TO, S_PAST, M_HALF, S_CLOCK};
+const int words[][2] = {{0,1},{3,5},{7,10},{11,14},{15,21},{26,32},{22,25},{39,41},{35,38},{44,47},{107,109},
+                        {49,53},{57,60},{55,59},{67,70},{84,87},{73,76},{100,104},{60,65},{89,92},{66,69},{93,96},{77,79}};
+const int words_offset = 11;
+
 void drawDisplay(int hour, int minute);
+void simulateDisplayOutput(bool ledmatrix[], String front, int min);
+
 
 //Global for the moment, might change later
 String ssid = "";
@@ -243,7 +251,7 @@ void resetConfig(){
 
 void onMinuteChange(struct tm timeinfo){
   Serial.println(&timeinfo, "%A, %B %d %Y %H:%M");
-  int hour = timeinfo.tm_hour;
+  int hour = timeinfo.tm_hour%12;
   int min = timeinfo.tm_min;
   drawDisplay(hour, min);
 }
@@ -268,5 +276,100 @@ String readFileToString(String filename){
 }
 
 void drawDisplay(int hour, int minute){
-  
+  int min1to4 = minute%5;
+  int min5 = minute - min1to4;
+  int hour12h = hour;
+  if(minute >= 25){
+    hour12h = (hour + 1)%12;
+  }
+  bool matrix[114];
+  memset(matrix, 0, sizeof(bool)*114);
+  // Static Stuff
+  for(int i = 0; i < 2; i++){
+    for(int j = words[i][0]; j<= words[i][1]; j++){
+      matrix[j] = 1;
+    }
+  }
+  // Minute
+  if(min5 < 4) {
+    for(int i = words[S_CLOCK][0]; i <= words[S_CLOCK][1]; i++){
+      matrix[i] = 1;
+    }
+  } else if (min5 >= 25 && min5 < 40) {
+    for(int i = words[M_HALF][0]; i <= words[M_HALF][1]; i++){
+      matrix[i] = 1;
+    }
+  }
+  // PAST
+  if((min5 >= 5 && min5 < 25) || (min5 >= 35 &&min5 < 40)){
+    for(int i = words[S_PAST][0]; i <= words[S_PAST][1]; i++){
+      matrix[i] = 1;
+    }
+  }
+  // TO
+  if((min5 >= 25 && min5 < 30) || (min5 >= 40 &&min5 < 60)){
+    for(int i = words[S_TO][0]; i <= words[S_TO][1]; i++){
+      matrix[i] = 1;
+    }
+  }
+  // FIVE
+  if((min5 >= 5 && min5 < 10) || (min5 >= 55 && min5 < 60) || (min5 >= 25 && min5 < 30) || (min5 >= 35 && min5 < 40)){
+    for(int i = words[M_FIVE][0]; i <= words[M_FIVE][1]; i++){
+      matrix[i] = 1;
+    }
+  }
+  // TEN
+  if((min5 >= 10 && min5 < 15) || (min5 >= 50 && min5 < 55)){
+    for(int i = words[M_TEN][0]; i <= words[M_TEN][1]; i++){
+      matrix[i] = 1;
+    }
+  }
+  // QUARTER
+  if((min5 >= 15 && min5 < 20) || (min5 >= 45 && min5 < 50)){
+    for(int i = words[M_FIFTEEN][0]; i <= words[M_FIFTEEN][1]; i++){
+      matrix[i] = 1;
+    }
+  }
+  // TWENTY
+  if((min5 >= 20 && min5 < 25) || (min5 >= 40 && min5 < 45)){
+    for(int i = words[M_TWENTY][0]; i <= words[M_TWENTY][1]; i++){
+      matrix[i] = 1;
+    }
+  }
+  for(int i = words[words_offset+hour12h][0]; i <= words[words_offset+hour12h][1]; i++){
+    matrix[i] = 1;
+  }
+  // The Real Clock updates the LEDs here.
+  simulateDisplayOutput(matrix, frontplate, min1to4);
+}
+
+void simulateDisplayOutput(bool ledmatrix[], String front, int min){
+  String toPrint = "";
+  if(min > 0){
+    toPrint.concat("*");
+  } else {
+    toPrint.concat("\n ");
+  }
+  if(min > 1){
+    toPrint.concat("           *\n ");
+  } else {
+    toPrint.concat("\n ");
+  }
+  for(int i = 0; i < 110; i++){
+    if(i % 11 == 0 && i != 0){
+      toPrint.concat("\n ");
+    }
+    if(ledmatrix[i]){
+      toPrint.concat(front[i]);
+    } else {
+      toPrint.concat(" ");
+    }
+  }
+    if(min > 2){
+    toPrint.concat("\n*");
+  }
+  if(min > 3){
+    toPrint.concat("           *");
+  }
+  Serial.println(toPrint);
 }
