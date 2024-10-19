@@ -10,6 +10,8 @@
 #include <ESPmDNS.h>
 // for ntp server and time
 #include "time.h"
+// LEDs
+#include <Adafruit_NeoPixel.h>
 
 //Reset on Pin G21
 const int reset_button = 21;
@@ -21,11 +23,17 @@ const char* frontplate = "ESKISTLF\xF5NFZEHNZWANZIGDREIVIERTELTGNACHVORJMHALBQZW
 
 enum wordtype {S_IT, S_IS, M_FIVE, M_TEN, M_TWENTY, M_FIFTEEN, M_FORTYFIVE, S_TO, S_PAST, M_HALF, S_CLOCK};
 const int words[][2] = {{0,1},{3,5},{7,10},{11,14},{15,21},{26,32},{22,25},{39,41},{35,38},{44,47},{107,109},
-                        {49,53},{57,60},{55,59},{67,70},{84,87},{73,76},{100,104},{60,65},{89,92},{66,69},{93,96},{77,79}};
+                        {49,53},{57,60},{55,59},{67,70},{84,87},{73,76},{100,104},{60,65},{89,92},{80,83},{93,96},{77,79}};
 const int words_offset = 11;
 
 void drawDisplay(int hour, int minute);
+void displayOutput(bool ledmatrix[]);
 void simulateDisplayOutput(bool ledmatrix[], String front, int min);
+
+//LEDs
+const int led_data = 13;
+const int led_num = 114;
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(led_num, led_data, NEO_GRB + NEO_KHZ800);
 
 
 //Global for the moment, might change later
@@ -64,9 +72,14 @@ void setTimezone(String timezone);
 void setup() {
   pinMode(reset_button, INPUT);
   int button_state = digitalRead(reset_button);
+  pixels.setPixelColor(0, pixels.Color(255,0,0));
+  pixels.show();
   // put your setup code here, to run once:
   Serial.begin(115200);
-
+  /*for(int i = 0; i < led_num; i++){
+    pixels.setPixelColor(i, pixels.Color(65,50,35)); // Moderately bright green color.
+    pixels.show(); // This sends the updated pixel color to the hardware.
+  }*/
   // File System
   if(!LittleFS.begin()) {
     Serial.println("ERROR: Could not mount Filesystem");
@@ -113,13 +126,16 @@ void setup() {
     connectToWifi(j_ssid, j_pass);
     displayMode = SETTINGS;
   }
-  
+  pixels.setPixelColor(1, pixels.Color(255,0,0));
+  pixels.show();
 
   server.on("/", HTTP_GET, [] (AsyncWebServerRequest *request) {
     if(displayMode == SETUP){
       request -> redirect("/setup");
     } else {
-      request -> send (200, "text/plain", "Todo");
+      //request -> send (200, "text/plain", "Todo");
+      String settings_html = readFileToString("/settings.html");
+      request -> send(200, "text/html", settings_html);
     }
   });
 
@@ -155,6 +171,26 @@ void setup() {
       request -> send (500, "text/plain", "Something went wrong, connect Arduino to PC and check debug");
     }
   });
+
+  server.on("/color", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("color", true)) {
+        String color = request->getParam("color", true)->value();
+        Serial.println("Selected color: " + color);
+        String hexColor = color.substring(1);
+
+        long rgbValue = strtol(hexColor.c_str(), NULL, 16);
+        int red = (rgbValue >> 16) & 0xFF;
+        int green = (rgbValue >> 8) & 0xFF;
+        int blue = rgbValue & 0xFF;
+
+        for(int i = 0; i < led_num; i++){
+          pixels.setPixelColor(i, pixels.Color(red,green,blue)); // Moderately bright green color.
+          pixels.show(); // This sends the updated pixel color to the hardware.
+        }
+    }
+    request->send(200, "text/plain", "Color received");
+  });
+
   MDNS.begin("wordclock");
   server.begin();
 
@@ -339,8 +375,18 @@ void drawDisplay(int hour, int minute){
   for(int i = words[words_offset+hour12h][0]; i <= words[words_offset+hour12h][1]; i++){
     matrix[i] = 1;
   }
+  // MINUTES
+  if(min1to4 > 0)
+    matrix[110] = 1;
+  if(min1to4 > 1)
+    matrix[111] = 1;
+  if(min1to4 > 2)
+    matrix[112] = 1;
+  if(min1to4 > 3)
+    matrix[113] = 1;
   // The Real Clock updates the LEDs here.
   simulateDisplayOutput(matrix, frontplate, min1to4);
+  displayOutput(matrix);
 }
 
 void simulateDisplayOutput(bool ledmatrix[], String front, int min){
@@ -372,4 +418,16 @@ void simulateDisplayOutput(bool ledmatrix[], String front, int min){
     toPrint.concat("           *");
   }
   Serial.println(toPrint);
+}
+
+
+void displayOutput(bool ledmatrix[]){
+  for (int i = 0; i < led_num; i++){
+    if(ledmatrix[i]){
+      pixels.setPixelColor(i, pixels.Color(50,50,50));
+    } else {
+      pixels.setPixelColor(i, pixels.Color(0,0,0));
+    }
+  }
+  pixels.show();
 }

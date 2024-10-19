@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; margin: 0; }
+    form {
+      display: inline-block;
+      text-align: left;
+      background-color: #f9f9f9;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      width: 100%;
+      max-width: 300px;
+      margin: auto;
+    }
+    h1 {
+      font-size: 22px;
+      margin-bottom: 15px;
+    }
+    label {
+      font-size: 14px;
+      margin-bottom: 5px;
+      display: block;
+    }
+    input[type="color"] {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0 10px 0;
+      display: block;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+      cursor: pointer;
+    }
+    .color-preview {
+      width: 100%;
+      height: 50px;
+      border: 1px solid #ccc;
+      margin-top: 10px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Color Picker</h1>
+  <form id="colorForm">
+    <label for="colorPicker">Pick a Color:</label>
+    <input type="color" id="colorPicker" name="colorPicker" value="#ff0000">
+    <div class="color-preview" id="colorPreview"></div>
+  </form>
+
+  <script>
+    // Select the input and color preview elements
+    const colorPicker = document.getElementById('colorPicker');
+    const colorPreview = document.getElementById('colorPreview');
+
+    // Function to send color to ESP32 and update the preview
+    function sendColor(color) {
+      // Update color preview box
+      colorPreview.style.backgroundColor = color;
+
+      // Send color to ESP32 using a fetch API call (AJAX)
+      fetch('/color', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'color=' + encodeURIComponent(color)
+      })
+      .then(response => response.text())
+      .then(data => console.log('Color sent successfully:', data))
+      .catch(error => console.error('Error sending color:', error));
+    }
+
+    // Event listener for color change
+    colorPicker.addEventListener('input', (event) => {
+      const selectedColor = event.target.value;
+      sendColor(selectedColor);  // Send selected color to server
+    });
+  </script>
+</body>
+</html>
