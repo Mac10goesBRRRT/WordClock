@@ -12,6 +12,11 @@
 #include "time.h"
 // LEDs
 #include <Adafruit_NeoPixel.h>
+//my stuff
+#include "helpers.h"
+
+
+// TODO: FLIP LOGIC for odd rows
 
 //Reset on Pin G21
 const int reset_button = 21;
@@ -22,13 +27,13 @@ const char* pre_pass = "12345678";
 const char* frontplate = "ESKISTLF\xF5NFZEHNZWANZIGDREIVIERTELTGNACHVORJMHALBQZW\xEFLFPZWEINSIEBENKDREIRHF\xF5NFELFNEUNVIERWACHTZEHNRSBSECHSFMUHR";
 
 enum wordtype {S_IT, S_IS, M_FIVE, M_TEN, M_TWENTY, M_FIFTEEN, M_FORTYFIVE, S_TO, S_PAST, M_HALF, S_CLOCK};
-const int words[][2] = {{0,1},{3,5},{7,10},{11,14},{15,21},{26,32},{22,25},{39,41},{35,38},{44,47},{107,109},
+const int wordsDE[][2] = {{0,1},{3,5},{7,10},{11,14},{15,21},{26,32},{22,25},{39,41},{35,38},{44,47},{107,109},
                         {49,53},{57,60},{55,59},{67,70},{84,87},{73,76},{100,104},{60,65},{89,92},{80,83},{93,96},{77,79}};
 const int words_offset = 11;
 
-void drawDisplay(int hour, int minute);
+void drawDisplay(int hour, int minute, const int words[][2]);
 void displayOutput(bool ledmatrix[]);
-void simulateDisplayOutput(bool ledmatrix[], String front, int min);
+
 
 //LEDs
 const int led_data = 13;
@@ -47,11 +52,8 @@ AsyncWebServer server(80);
 enum PageMode {SETUP, SETTINGS};
 PageMode displayMode = SETUP;
 
-//Generates a String to dynamically add the Wifi-Networks on site.
+// Generates a String to dynamically add the Wifi-Networks on site.
 String generateWifiOptions();
-// File Writing
-void fileWriteData(String data, String filename);
-String readFileToString(String filename);
 
 void resetConfig();
 
@@ -219,19 +221,6 @@ void loop() {
   }
 }
 
-
-void fileWriteData(String data, String filename){
-  File file = LittleFS.open(filename, FILE_WRITE);
-  if(!file){
-    Serial.println("Failed to open file");
-    return;
-  }
-  file.print(data);
-  file.close();
-}
-
-
-
 String generateWifiOptions() {
   String options = "";
   int n = WiFi.scanNetworks();
@@ -289,7 +278,7 @@ void onMinuteChange(struct tm timeinfo){
   Serial.println(&timeinfo, "%A, %B %d %Y %H:%M");
   int hour = timeinfo.tm_hour%12;
   int min = timeinfo.tm_min;
-  drawDisplay(hour, min);
+  drawDisplay(hour, min, wordsDE);
 }
 
 void setTimezone(String timezone){
@@ -298,20 +287,7 @@ void setTimezone(String timezone){
   tzset();
 }
 
-String readFileToString(String filename){
-  String file_content;
-  File file = LittleFS.open(filename, FILE_READ);
-  if(!file){
-    Serial.println("Failed to open file");
-  } else {
-      file_content = file.readString();
-    //Serial.println(file_content);
-    file.close();
-  }
-  return file_content;
-}
-
-void drawDisplay(int hour, int minute){
+void drawDisplay(int hour, int minute, const int words[][2]){
   int min1to4 = minute%5;
   int min5 = minute - min1to4;
   int hour12h = hour;
@@ -389,36 +365,7 @@ void drawDisplay(int hour, int minute){
   displayOutput(matrix);
 }
 
-void simulateDisplayOutput(bool ledmatrix[], String front, int min){
-  String toPrint = "";
-  if(min > 0){
-    toPrint.concat("*");
-  } else {
-    toPrint.concat("\n ");
-  }
-  if(min > 1){
-    toPrint.concat("           *\n ");
-  } else {
-    toPrint.concat("\n ");
-  }
-  for(int i = 0; i < 110; i++){
-    if(i % 11 == 0 && i != 0){
-      toPrint.concat("\n ");
-    }
-    if(ledmatrix[i]){
-      toPrint.concat(front[i]);
-    } else {
-      toPrint.concat(" ");
-    }
-  }
-    if(min > 2){
-    toPrint.concat("\n*");
-  }
-  if(min > 3){
-    toPrint.concat("           *");
-  }
-  Serial.println(toPrint);
-}
+
 
 
 void displayOutput(bool ledmatrix[]){
